@@ -51,10 +51,10 @@ provision_git amcat amcat
 provision_git vanatteveldt saf
 
 >&2 echo "*** Installing python virtual environment"
-if [ ! -d "amcat-env" ]; then
-  virtualenv /vagrant/amcat-env
+if [ ! -d "~/amcat-env" ]; then
+  virtualenv ~/amcat-env
 fi
-. /vagrant/amcat-env/bin/activate
+. ~/amcat-env/bin/activate
 pip install -r /vagrant/amcat/requirements.txt
 
 
