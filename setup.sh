@@ -1,7 +1,8 @@
 set -e
 
 >&2 echo "*** Installing apt dependencies" 
-sudo apt-get install -qy git unrtf rabbitmq-server python-pip python-dev libxml2-dev libxslt-dev lib32z1-dev postgresql postgresql-server-dev-9.3 postgresql-contrib-9.3 python-virtualenv
+sudo apt-get update -q
+sudo apt-get install -qy git unrtf rabbitmq-server python-pip python-dev libxml2-dev libxslt-dev lib32z1-dev postgresql postgresql-server-dev-9.3 postgresql-contrib-9.3 python-virtualenv frog frogdata ucto
 
 # Install elasticsearch first to give it time to start up
 if ! type "java" > /dev/null 2>&1; then
@@ -49,14 +50,20 @@ function provision_git {
 
 provision_git amcat amcat
 provision_git vanatteveldt saf
+provision_git vanatteveldt xtas
 
->&2 echo "*** Installing python virtual environment"
-if [ ! -d "~/amcat-env" ]; then
+cd /vagrant/xtas
+git checkout child_corenlp
+
+if [ ! -d "/home/vagrant/amcat-env" ]; then
+  >&2 echo "*** Installing python virtual environment"
   virtualenv ~/amcat-env
 fi
+>&2 echo "*** Installing pip modules"
 . ~/amcat-env/bin/activate
 pip install -r /vagrant/amcat/requirements.txt
-
+# xtas pip req 
+pip install toolz nltk 
 
 >&2 echo "*** Getting static files (javascript) via bower"
 if ! type "bower" > /dev/null 2>&1; then
@@ -75,13 +82,25 @@ if ! psql amcat -c '\q' 2>&1; then
   createdb amcat 
 fi
 
+
+
+
+if [ ! -d "/home/vagrant/Alpino" ]; then
+  >&2 echo "*** Download alpino"
+  cd /home/vagrant
+  curl -s http://www.let.rug.nl/vannoord/alp/Alpino/binary/versions/Alpino-x86_64-linux-glibc2.5-20563-sicstus.tar.gz | tar xvz
+fi
+
+export PYTHONPATH=/vagrant/amcat:/vagrant/saf:/vagrant/xtas
+export ALPINO_HOME=/home/vagrant/Alpino
+export DJANGO_SETTINGS_MODULE=settings
+
 while ! grep -q "started$" /var/log/elasticsearch/elasticsearch.log; do
     >&2 echo "*** Waiting for elastic"
     sleep 5
 done
+ 
 
-export PYTHONPATH=/vagrant/amcat:/vagrant/saf
-export DJANGO_SETTINGS_MODULE=settings
 
 >&2 echo "*** django syncdb"
 python -m amcat.manage syncdb
@@ -92,8 +111,15 @@ screen -S runserver -d -m python -m amcat.manage runserver 0.0.0.0:8001
 
 >&2 echo "*** starting celery worker in screen process"
 screen -S amcat_celery -X quit || true
-screen -S amcat_celery -d -m celery -A amcat.amcatcelery worker -l info -Q amcat
+screen -S amcat_celery -d -m celery -A amcat.amcatcelery worker -l info -Q amcat 
 
+>&2 echo "*** starting xtas worker in screen process"
+screen -S xtas_celery -X quit || true
+screen -S xtas_celery -d -m celery -A xtas -l INFO worker -Q xtas --concurrency 1
+
+>&2 echo "*** starting frog in screen process"
+screen -S frog -X quit || true
+screen -S frog -d -m frog -S 9887 --skip=p
 
 >&2 echo "*** Done!"
 >&2 echo "Use vagrant ssh, screen -list, and screen -r to connect to background processes"

@@ -1,7 +1,8 @@
 Vagrant.configure("2") do |config|
   # pip install needs memory...
   config.vm.provider :virtualbox do |vb|
-    vb.customize ["modifyvm", :id, "--memory", "1024"]
+    vb.customize ["modifyvm", :id, "--memory", "2048"]
+    vb.name = "amcat_vm"
   end
 
   # Start with a base ubuntu box
